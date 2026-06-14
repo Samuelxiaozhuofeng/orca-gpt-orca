@@ -27,7 +27,11 @@
 .orca-ai-panel button,
 .orca-ai-panel input,
 .orca-ai-panel select,
-.orca-ai-panel textarea {
+.orca-ai-panel textarea,
+.orca-ai-settings-page button,
+.orca-ai-settings-page input,
+.orca-ai-settings-page select,
+.orca-ai-settings-page textarea {
   font: inherit;
 }
 
@@ -208,7 +212,10 @@
 .orca-ai-panel__textarea,
 .orca-ai-panel input,
 .orca-ai-panel select,
-.orca-ai-panel textarea {
+.orca-ai-panel textarea,
+.orca-ai-settings-page input,
+.orca-ai-settings-page select,
+.orca-ai-settings-page textarea {
   width: 100%;
   box-sizing: border-box;
   border: 1.5px solid #cbd5e1;
@@ -224,7 +231,10 @@
 .orca-ai-panel__textarea:focus,
 .orca-ai-panel input:focus,
 .orca-ai-panel select:focus,
-.orca-ai-panel textarea:focus {
+.orca-ai-panel textarea:focus,
+.orca-ai-settings-page input:focus,
+.orca-ai-settings-page select:focus,
+.orca-ai-settings-page textarea:focus {
   outline: none;
   border-color: #0f766e;
   background: #ffffff;
@@ -237,15 +247,72 @@
 .orca-ai-panel__textarea:hover:not(:focus),
 .orca-ai-panel input:hover:not(:focus),
 .orca-ai-panel select:hover:not(:focus),
-.orca-ai-panel textarea:hover:not(:focus) {
+.orca-ai-panel textarea:hover:not(:focus),
+.orca-ai-settings-page input:hover:not(:focus),
+.orca-ai-settings-page select:hover:not(:focus),
+.orca-ai-settings-page textarea:hover:not(:focus) {
   border-color: #94a3b8;
 }
 
 .orca-ai-panel__input,
 .orca-ai-panel input,
-.orca-ai-panel select {
+.orca-ai-panel select,
+.orca-ai-settings-page input,
+.orca-ai-settings-page select {
   min-height: 40px;
   padding: 0 14px;
+}
+
+/* Custom styled select dropdown indicator */
+.orca-ai-panel select,
+.orca-ai-settings-page select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 12px center;
+  background-repeat: no-repeat;
+  background-size: 1.25rem;
+  padding-right: 36px;
+}
+
+/* Custom styled checkbox */
+.orca-ai-panel input[type="checkbox"],
+.orca-ai-settings-page input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 4px;
+  background-color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  padding: 0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.orca-ai-panel input[type="checkbox"]:checked,
+.orca-ai-settings-page input[type="checkbox"]:checked {
+  background-color: #0f766e;
+  border-color: #0f766e;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23ffffff'%3E%3Cpath fill-rule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z' clip-rule='evenodd'/%3E%3C/svg%3E");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 14px;
+}
+
+.orca-ai-panel input[type="checkbox"]:focus,
+.orca-ai-settings-page input[type="checkbox"]:focus {
+  outline: none;
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
 }
 
 .orca-ai-panel__textarea,
@@ -313,7 +380,8 @@
   gap: 12px;
 }
 
-.orca-ai-panel label {
+.orca-ai-panel label,
+.orca-ai-settings-page label {
   display: grid;
   gap: 10px;
   color: #334155;
@@ -329,7 +397,8 @@
   background: #f8fafc;
 }
 
-.orca-ai-panel label:last-of-type {
+.orca-ai-panel label:last-of-type,
+.orca-ai-settings-page label:last-of-type {
   margin-bottom: 0;
 }
 
