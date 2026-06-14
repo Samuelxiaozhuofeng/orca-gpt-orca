@@ -1,4 +1,5 @@
 import React from "react";
+import { addCustomPrompt } from "./promptActions";
 import type { AiSettings, PromptTemplate } from "../types/ai";
 
 type PromptRoutingProps = {
@@ -33,7 +34,12 @@ export function PromptRouting({
     <div className="orca-ai-panel__routing">
       <div className="orca-ai-panel__section-heading">
         <span>Prompt Routing</span>
-        <span>{prompts.length}</span>
+        <button
+          type="button"
+          onClick={() => onSettingsChange(addCustomPrompt(settings))}
+        >
+          Add
+        </button>
       </div>
       {prompts.map((prompt) => {
         const override = settings.promptOverrides.find(

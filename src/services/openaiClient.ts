@@ -31,7 +31,10 @@ export async function fetchProviderModels(
     throw new Error(await buildHttpError("Fetch models failed", response));
   }
 
-  const json = (await response.json()) as FetchModelsResponse;
+  const json = parseJsonResponse(
+    await response.text(),
+    "Fetch models failed",
+  ) as FetchModelsResponse;
   const models =
     json.data
       ?.map((model) => model.id)
@@ -98,4 +101,16 @@ async function buildHttpError(prefix: string, response: Response): Promise<strin
   return summary
     ? `${prefix}: ${response.status} ${response.statusText}. ${summary}`
     : `${prefix}: ${response.status} ${response.statusText}.`;
+}
+
+function parseJsonResponse(body: string, prefix: string): unknown {
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    const summary = body.trim().slice(0, 160);
+    const hint = summary.startsWith("<")
+      ? " The server returned HTML; check that the API URL is an OpenAI-compatible base URL such as https://api.openai.com/v1."
+      : "";
+    throw new Error(`${prefix}: response was not valid JSON.${hint}`);
+  }
 }

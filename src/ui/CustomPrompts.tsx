@@ -1,4 +1,5 @@
 import React from "react";
+import { addCustomPrompt } from "./promptActions";
 import type { AiSettings, PromptTemplate } from "../types/ai";
 
 type CustomPromptsProps = {
@@ -23,7 +24,10 @@ export function CustomPrompts({
     <div className="orca-ai-panel__custom-prompts">
       <div className="orca-ai-panel__section-heading">
         <span>Custom Prompts</span>
-        <button type="button" onClick={() => addPrompt(settings, onSettingsChange)}>
+        <button
+          type="button"
+          onClick={() => onSettingsChange(addCustomPrompt(settings))}
+        >
           Add
         </button>
       </div>
@@ -72,25 +76,4 @@ export function CustomPrompts({
       ))}
     </div>
   );
-}
-
-function addPrompt(
-  settings: AiSettings,
-  onSettingsChange: (settings: AiSettings) => void,
-) {
-  onSettingsChange({
-    ...settings,
-    customPrompts: [
-      ...settings.customPrompts,
-      {
-        id: `custom-${Date.now()}`,
-        name: "新 Prompt",
-        instruction: "",
-        resultKind: "text",
-        outputMode: "ask",
-        enabled: true,
-        builtin: false,
-      },
-    ],
-  });
 }
