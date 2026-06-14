@@ -39,6 +39,14 @@ export function PromptRouting({
         const override = settings.promptOverrides.find(
           (item) => item.promptId === prompt.id,
         );
+        const effectiveProviderId =
+          prompt.providerId ?? override?.providerId ?? settings.defaultProviderId;
+        const provider = settings.providers.find(
+          (item) => item.id === effectiveProviderId,
+        );
+        const models = provider?.models ?? [];
+        const modelListId = `models-${prompt.id}`;
+
         return (
           <div className="orca-ai-panel__route" key={prompt.id}>
             <span>{prompt.name}</span>
@@ -60,12 +68,20 @@ export function PromptRouting({
             <input
               value={override?.model ?? ""}
               placeholder="Model override"
+              list={modelListId}
               onChange={(event) =>
                 updateOverride(prompt.id, {
                   model: event.currentTarget.value || undefined,
                 })
               }
             />
+            {models.length > 0 && (
+              <datalist id={modelListId}>
+                {models.map((model) => (
+                  <option key={model} value={model} />
+                ))}
+              </datalist>
+            )}
             <input
               type="number"
               step="0.1"
