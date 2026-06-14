@@ -1,0 +1,294 @@
+/* Command Panel - Minimal, Focus-first Design */
+
+.orca-command-panel__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 20vh;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  animation: orca-fade-in 0.15s ease;
+}
+
+@keyframes orca-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.orca-command-panel {
+  width: min(640px, calc(100vw - 32px));
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.05),
+    0 20px 60px rgba(15, 23, 42, 0.3),
+    0 10px 30px rgba(15, 23, 42, 0.2);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  animation: orca-slide-up 0.2s ease;
+}
+
+@keyframes orca-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Input Phase */
+
+.orca-command-panel__input-section {
+  position: relative;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.orca-command-panel__input {
+  width: 100%;
+  padding: 12px 0;
+  border: none;
+  background: transparent;
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 400;
+  outline: none;
+}
+
+.orca-command-panel__input::placeholder {
+  color: #94a3b8;
+}
+
+.orca-command-panel__context-hint {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.orca-command-panel__prompt-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.orca-command-panel__prompt-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 24px;
+  border: none;
+  border-bottom: 1px solid #f1f5f9;
+  background: transparent;
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.orca-command-panel__prompt-item:hover,
+.orca-command-panel__prompt-item.is-selected {
+  background: #f8fafc;
+}
+
+.orca-command-panel__prompt-item.is-selected {
+  background: #f0fdfa;
+  border-left: 3px solid #0f766e;
+  padding-left: 21px;
+}
+
+.orca-command-panel__prompt-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.orca-command-panel__prompt-desc {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+/* Generating Phase */
+
+.orca-command-panel__generating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 48px 24px;
+  min-height: 240px;
+}
+
+.orca-command-panel__loading {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
+
+.orca-command-panel__loading-bar {
+  width: 4px;
+  height: 20px;
+  border-radius: 2px;
+  background: #cbd5e1;
+  animation: orca-pulse 1.2s ease-in-out infinite;
+}
+
+.orca-command-panel__loading-bar:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.orca-command-panel__loading-bar:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes orca-pulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleY(1.5);
+  }
+}
+
+.orca-command-panel__preview {
+  width: 100%;
+  max-height: 200px;
+  overflow: auto;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.orca-command-panel__cancel-btn {
+  padding: 8px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #64748b;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.orca-command-panel__cancel-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+/* Result Phase */
+
+.orca-command-panel__result {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px;
+}
+
+.orca-command-panel__result-text {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.orca-command-panel__error {
+  padding: 16px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.orca-command-panel__actions {
+  display: flex;
+  gap: 8px;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.orca-command-panel__action-btn {
+  flex: 1;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.orca-command-panel__action-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.orca-command-panel__action-btn.is-primary {
+  border-color: #0f766e;
+  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.25);
+}
+
+.orca-command-panel__action-btn.is-primary:hover {
+  background: linear-gradient(135deg, #0d6960 0%, #12a594 100%);
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.35);
+  transform: translateY(-1px);
+}
+
+/* Responsive */
+
+@media (max-width: 640px) {
+  .orca-command-panel__backdrop {
+    padding-top: 10vh;
+  }
+
+  .orca-command-panel {
+    max-height: 80vh;
+  }
+
+  .orca-command-panel__actions {
+    flex-wrap: wrap;
+  }
+
+  .orca-command-panel__action-btn {
+    min-width: calc(50% - 4px);
+  }
+}
