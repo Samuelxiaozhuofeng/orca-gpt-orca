@@ -1,10 +1,14 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { copyResult } from "../commands/writeBackResult";
 import { HistoryView } from "./HistoryView";
 import { SettingsView } from "./SettingsView";
 import { getHistory } from "../history/historyStore";
 import { getAvailablePrompts } from "../prompts/promptUtils";
-import { getAiSettings, saveAiSettings } from "../settings/readSettings";
+import {
+  getAiSettings,
+  getDefaultAiSettings,
+  saveAiSettings,
+} from "../settings/readSettings";
 import type { AiHistoryItem, AiSettings } from "../types/ai";
 import type { PanelProps } from "../orca";
 
@@ -16,12 +20,30 @@ type SettingsSection = "providers" | "routing" | "prompts" | "history";
 
 export function SettingsPage({ pluginName }: SettingsPageProps) {
   const [settings, setSettings] = useState<AiSettings>(() =>
-    getAiSettings(pluginName),
+    getDefaultAiSettings(pluginName),
   );
   const [history, setHistory] = useState<AiHistoryItem[]>([]);
   const [section, setSection] = useState<SettingsSection>("providers");
   const [error, setError] = useState("");
   const prompts = useMemo(() => getAvailablePrompts(settings), [settings]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getAiSettings(pluginName)
+      .then((loadedSettings) => {
+        if (!cancelled) setSettings(loadedSettings);
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setError(caught instanceof Error ? caught.message : String(caught));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pluginName]);
 
   const updateSettings = async (nextSettings: AiSettings) => {
     setSettings(nextSettings);

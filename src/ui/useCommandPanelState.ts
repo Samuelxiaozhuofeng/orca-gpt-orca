@@ -8,7 +8,11 @@ import {
 } from "../commands/writeBackResult";
 import { appendHistory } from "../history/historyStore";
 import { getAvailablePrompts } from "../prompts/promptUtils";
-import { getAiSettings, saveAiSettings } from "../settings/readSettings";
+import {
+  getAiSettings,
+  getDefaultAiSettings,
+  saveAiSettings,
+} from "../settings/readSettings";
 import { generateAiResult } from "../services/aiRunner";
 import type {
   AiBlockContext,
@@ -34,7 +38,7 @@ export function useCommandPanelState(
 ) {
   const [phase, setPhase] = useState<PanelPhase>("input");
   const [settings, setSettings] = useState<AiSettings>(() =>
-    getAiSettings(pluginName),
+    getDefaultAiSettings(pluginName),
   );
   const prompts = useMemo(() => getAvailablePrompts(settings), [settings]);
   const [query, setQuery] = useState("");
@@ -65,7 +69,13 @@ export function useCommandPanelState(
     setSelectedIndex(0);
     setResult("");
     setError("");
-    setSettings(getAiSettings(pluginName));
+    getAiSettings(pluginName)
+      .then((loadedSettings) => {
+        if (!cancelled) setSettings(loadedSettings);
+      })
+      .catch((caught) => {
+        if (!cancelled) setError(errorMessage(caught));
+      });
 
     resolveBlockContext(blockId)
       .then((resolvedContext) => {
@@ -133,8 +143,10 @@ export function useCommandPanelState(
     setResult("");
 
     try {
+      const currentSettings = await getAiSettings(pluginName);
+      setSettings(currentSettings);
       const generation = await generateAiResult({
-        settings,
+        settings: currentSettings,
         context,
         prompt: prompt ?? prompts[0],
         temporaryInstruction: instruction,

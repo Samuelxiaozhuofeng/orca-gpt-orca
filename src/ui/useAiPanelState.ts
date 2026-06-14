@@ -8,7 +8,11 @@ import {
 } from "../commands/writeBackResult";
 import { appendHistory, getHistory } from "../history/historyStore";
 import { getAvailablePrompts } from "../prompts/promptUtils";
-import { getAiSettings, saveAiSettings } from "../settings/readSettings";
+import {
+  getAiSettings,
+  getDefaultAiSettings,
+  saveAiSettings,
+} from "../settings/readSettings";
 import { generateAiResult } from "../services/aiRunner";
 import type {
   AiBlockContext,
@@ -32,7 +36,7 @@ export function useAiPanelState(
   blockId?: DbId,
 ) {
   const [settings, setSettings] = useState<AiSettings>(() =>
-    getAiSettings(pluginName),
+    getDefaultAiSettings(pluginName),
   );
   const prompts = useMemo(() => getAvailablePrompts(settings), [settings]);
   const [selectedPrompt, setSelectedPrompt] = useState<PromptTemplate>(
@@ -58,9 +62,16 @@ export function useAiPanelState(
     if (!isOpen) return;
     let cancelled = false;
 
-    setSettings(getAiSettings(pluginName));
     setError("");
     setResult("");
+
+    getAiSettings(pluginName)
+      .then((loadedSettings) => {
+        if (!cancelled) setSettings(loadedSettings);
+      })
+      .catch((caught) => {
+        if (!cancelled) setError(errorMessage(caught));
+      });
 
     resolveBlockContext(blockId)
       .then((resolvedContext) => {
@@ -135,8 +146,10 @@ export function useAiPanelState(
     setResult("");
 
     try {
+      const currentSettings = await getAiSettings(pluginName);
+      setSettings(currentSettings);
       const generation = await generateAiResult({
-        settings,
+        settings: currentSettings,
         context,
         prompt,
         temporaryInstruction: instruction,

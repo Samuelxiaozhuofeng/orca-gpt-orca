@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS } from "./schema";
+import { loadStoredAiSettings, storeAiSettings } from "./settingsDataStore";
 import type {
   AiProvider,
   AiSettings,
@@ -10,9 +11,46 @@ import type {
 
 type UnknownRecord = Record<string, unknown>;
 
-export function getAiSettings(pluginName: string): AiSettings {
-  const raw = orca.state.plugins[pluginName]?.settings ?? {};
+export function getDefaultAiSettings(pluginName: string): AiSettings {
+  return normalizeSettings({
+    ...DEFAULT_SETTINGS,
+    shortcut: getNativeShortcut(pluginName),
+  });
+}
 
+export async function getAiSettings(pluginName: string): Promise<AiSettings> {
+  const storedSettings = await loadStoredAiSettings(pluginName);
+  const legacySettings = getLegacyNativeAiSettings(pluginName);
+  return normalizeSettings({
+    ...DEFAULT_SETTINGS,
+    ...legacySettings,
+    ...storedSettings,
+    shortcut: getNativeShortcut(pluginName),
+  });
+}
+
+function getNativeShortcut(pluginName: string): string {
+  const raw = orca.state.plugins[pluginName]?.settings ?? {};
+  return asString(raw.shortcut, DEFAULT_SETTINGS.shortcut);
+}
+
+function getLegacyNativeAiSettings(pluginName: string): Partial<AiSettings> {
+  const raw = orca.state.plugins[pluginName]?.settings ?? {};
+  if (!("providers" in raw)) return {};
+
+  return {
+    defaultProviderId: raw.defaultProviderId,
+    defaultModel: raw.defaultModel,
+    systemPrompt: raw.systemPrompt,
+    temperature: raw.temperature,
+    maxTokens: raw.maxTokens,
+    providers: raw.providers,
+    promptOverrides: raw.promptOverrides,
+    customPrompts: raw.customPrompts,
+  } as Partial<AiSettings>;
+}
+
+function normalizeRawSettings(raw: UnknownRecord): AiSettings {
   const providers = normalizeProviders(raw.providers);
   const defaultProviderId = asString(
     raw.defaultProviderId,
@@ -36,7 +74,7 @@ export async function saveAiSettings(
   pluginName: string,
   settings: AiSettings,
 ): Promise<void> {
-  await orca.plugins.setSettings("app", pluginName, normalizeSettings(settings));
+  await storeAiSettings(pluginName, normalizeSettings(settings));
 }
 
 export function normalizeSettings(settings: AiSettings): AiSettings {

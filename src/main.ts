@@ -25,7 +25,7 @@ export async function load(_name: string) {
   styleHandle = loadPanelStyles(pluginName);
   settingsPageRegistration = registerSettingsPage(pluginName);
   panelHandle = mountCommandPanel(pluginName);
-  const settings = getAiSettings(pluginName);
+  const settings = await getAiSettings(pluginName);
   commandRegistration = await registerAiCommands(
     pluginName,
     settings.shortcut,
