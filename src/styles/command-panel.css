@@ -130,15 +130,75 @@
   line-height: 1.4;
 }
 
-/* Generating Phase */
+/* Chat / conversation phase */
 
-.orca-command-panel__generating {
+.orca-command-panel__chat {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 24px;
-  padding: 48px 24px;
-  min-height: 240px;
+  min-height: 280px;
+  max-height: 70vh;
+  overflow: hidden;
+}
+
+.orca-command-panel__conversation {
+  flex: 1;
+  min-height: 120px;
+  max-height: calc(70vh - 180px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 24px;
+}
+
+.orca-command-panel__bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+}
+
+.orca-command-panel__bubble--assistant {
+  align-self: stretch;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.orca-command-panel__bubble--user {
+  align-self: flex-end;
+  max-width: 90%;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+}
+
+.orca-command-panel__bubble-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.orca-command-panel__bubble--user .orca-command-panel__bubble-label {
+  color: #0f766e;
+}
+
+.orca-command-panel__bubble-text {
+  margin: 0;
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.orca-command-panel__thinking {
+  display: flex;
+  justify-content: flex-start;
+  padding: 8px 0;
 }
 
 .orca-command-panel__loading {
@@ -175,18 +235,20 @@
   }
 }
 
-.orca-command-panel__preview {
-  width: 100%;
-  max-height: 200px;
-  overflow: auto;
-  padding: 16px;
-  border-radius: 8px;
+.orca-command-panel__generating-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 24px;
+  border-top: 1px solid #e2e8f0;
   background: #f8fafc;
-  color: #334155;
-  font-size: 14px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.orca-command-panel__generating-label {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .orca-command-panel__cancel-btn {
@@ -206,26 +268,46 @@
   color: #475569;
 }
 
-/* Result Phase */
-
-.orca-command-panel__result {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 24px;
+.orca-command-panel__follow-up {
+  padding: 12px 24px 0;
+  border-top: 1px solid #e2e8f0;
+  background: #ffffff;
 }
 
-.orca-command-panel__result-text {
-  margin: 0;
+.orca-command-panel__follow-up-input {
+  width: 100%;
+  min-height: 56px;
+  max-height: 140px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
   color: #0f172a;
-  font-size: 15px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.orca-command-panel__follow-up-input:focus {
+  border-color: #0f766e;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
+.orca-command-panel__follow-up-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.orca-command-panel__follow-up-input::placeholder {
+  color: #94a3b8;
 }
 
 .orca-command-panel__error {
-  padding: 16px;
+  padding: 12px 14px;
   border-radius: 8px;
   background: #fef2f2;
   color: #991b1b;
@@ -233,11 +315,14 @@
   line-height: 1.5;
 }
 
+.orca-command-panel__error--inline {
+  margin: 0 24px 12px;
+}
+
 .orca-command-panel__actions {
   display: flex;
   gap: 8px;
-  padding: 16px 24px;
-  border-top: 1px solid #e2e8f0;
+  padding: 12px 24px 16px;
   background: #f8fafc;
 }
 
@@ -255,9 +340,14 @@
   transition: all 0.15s ease;
 }
 
-.orca-command-panel__action-btn:hover {
+.orca-command-panel__action-btn:hover:not(:disabled) {
   background: #f8fafc;
   border-color: #cbd5e1;
+}
+
+.orca-command-panel__action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .orca-command-panel__action-btn.is-primary {
@@ -267,7 +357,7 @@
   box-shadow: 0 2px 8px rgba(15, 118, 110, 0.25);
 }
 
-.orca-command-panel__action-btn.is-primary:hover {
+.orca-command-panel__action-btn.is-primary:hover:not(:disabled) {
   background: linear-gradient(135deg, #0d6960 0%, #12a594 100%);
   box-shadow: 0 4px 12px rgba(15, 118, 110, 0.35);
   transform: translateY(-1px);
