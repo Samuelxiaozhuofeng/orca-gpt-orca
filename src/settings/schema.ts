@@ -21,6 +21,18 @@ export const DEFAULT_SETTINGS: AiSettings = {
   ],
   promptOverrides: [],
   customPrompts: [],
+  webSearch: {
+    enabled: false,
+    provider: "auto",
+    tavilyApiKey: "",
+    exaApiKey: "",
+    braveApiKey: "",
+    perplexityApiKey: "",
+    searchDepth: "advanced",
+    includeAnswer: true,
+    fetchFullContent: true,
+    maxResults: 5,
+  },
 };
 
 export const settingsSchema: PluginSettingsSchema = {

@@ -7,6 +7,9 @@ import type {
   PromptOverride,
   PromptTemplate,
   ResultKind,
+  WebSearchDepth,
+  WebSearchProvider,
+  WebSearchSettings,
 } from "../types/ai";
 
 type UnknownRecord = Record<string, unknown>;
@@ -67,6 +70,7 @@ function normalizeRawSettings(raw: UnknownRecord): AiSettings {
     providers,
     promptOverrides: normalizePromptOverrides(raw.promptOverrides),
     customPrompts: normalizeCustomPrompts(raw.customPrompts),
+    webSearch: normalizeWebSearch(raw.webSearch),
   };
 }
 
@@ -95,7 +99,57 @@ export function normalizeSettings(settings: AiSettings): AiSettings {
     providers,
     promptOverrides: normalizePromptOverrides(settings.promptOverrides),
     customPrompts: normalizeCustomPrompts(settings.customPrompts),
+    webSearch: normalizeWebSearch(settings.webSearch),
   };
+}
+
+function normalizeWebSearch(value: unknown): WebSearchSettings {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return { ...DEFAULT_SETTINGS.webSearch };
+  }
+
+  const record = value as UnknownRecord;
+  const maxResultsRaw = asNumber(
+    record.maxResults,
+    DEFAULT_SETTINGS.webSearch.maxResults,
+  );
+
+  return {
+    enabled: record.enabled === true,
+    provider: normalizeWebSearchProvider(record.provider),
+    tavilyApiKey: asString(record.tavilyApiKey, ""),
+    exaApiKey: asString(record.exaApiKey, ""),
+    braveApiKey: asString(record.braveApiKey, ""),
+    perplexityApiKey: asString(record.perplexityApiKey, ""),
+    searchDepth: normalizeWebSearchDepth(record.searchDepth),
+    includeAnswer:
+      record.includeAnswer === undefined
+        ? DEFAULT_SETTINGS.webSearch.includeAnswer
+        : record.includeAnswer === true,
+    fetchFullContent:
+      record.fetchFullContent === undefined
+        ? DEFAULT_SETTINGS.webSearch.fetchFullContent
+        : record.fetchFullContent === true,
+    maxResults: Math.max(1, Math.min(10, Math.floor(maxResultsRaw))),
+  };
+}
+
+function normalizeWebSearchProvider(value: unknown): WebSearchProvider {
+  if (
+    value === "auto" ||
+    value === "exa" ||
+    value === "brave" ||
+    value === "tavily" ||
+    value === "perplexity"
+  ) {
+    return value;
+  }
+  // Legacy installs only had Tavily — default to auto so Exa MCP can work too.
+  return DEFAULT_SETTINGS.webSearch.provider;
+}
+
+function normalizeWebSearchDepth(value: unknown): WebSearchDepth {
+  return value === "basic" ? "basic" : "advanced";
 }
 
 export function normalizeApiBaseUrl(apiBaseUrl: string): string {

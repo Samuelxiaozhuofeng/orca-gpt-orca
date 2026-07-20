@@ -16,7 +16,12 @@ type SettingsPageProps = PanelProps & {
   pluginName: string;
 };
 
-type SettingsSection = "providers" | "routing" | "prompts" | "history";
+type SettingsSection =
+  | "providers"
+  | "webSearch"
+  | "routing"
+  | "prompts"
+  | "history";
 
 export function SettingsPage({ pluginName }: SettingsPageProps) {
   const [settings, setSettings] = useState<AiSettings>(() =>
@@ -78,6 +83,13 @@ export function SettingsPage({ pluginName }: SettingsPageProps) {
           Providers
         </button>
         <button
+          className={section === "webSearch" ? "is-active" : ""}
+          type="button"
+          onClick={() => setSection("webSearch")}
+        >
+          Web Search
+        </button>
+        <button
           className={section === "routing" ? "is-active" : ""}
           type="button"
           onClick={() => setSection("routing")}
@@ -134,6 +146,8 @@ function sectionTitle(section: SettingsSection): string {
   switch (section) {
     case "providers":
       return "Providers";
+    case "webSearch":
+      return "Web Search / 联网搜索";
     case "routing":
       return "Prompt Routing";
     case "prompts":

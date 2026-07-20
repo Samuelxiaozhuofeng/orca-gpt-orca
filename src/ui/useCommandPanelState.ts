@@ -21,6 +21,14 @@ import {
   buildInitialMessages,
   streamChatMessages,
 } from "../services/aiRunner";
+import {
+  appendSearchResultsToUserMessage,
+  assertWebSearchReady,
+  buildSearchQuery,
+  runWebSearch,
+  userRequestsWebSearch,
+  withWebSearchSystemContext,
+} from "../services/webSearch";
 import type {
   AiBlockContext,
   AiHistoryAction,
@@ -277,11 +285,43 @@ export function useCommandPanelState(
         ? trimmedInstruction
         : basePrompt.instruction;
       const config = resolvePromptConfig(currentSettings, runPrompt);
+
       const apiMessages = buildInitialMessages(
         currentSettings.systemPrompt,
         resolvedInstruction,
         context.blockText,
       );
+
+      // Optional web-search pass: enrich system + user message (UI stays clean).
+      if (userRequestsWebSearch(resolvedInstruction)) {
+        assertWebSearchReady(currentSettings);
+        const searchBundle = await runWebSearch({
+          settings: currentSettings.webSearch,
+          query: buildSearchQuery(resolvedInstruction, context.blockText),
+          signal: request.controller.signal,
+        });
+        if (!isRequestActive(request)) return;
+        const systemIndex = apiMessages.findIndex((m) => m.role === "system");
+        if (systemIndex >= 0) {
+          apiMessages[systemIndex] = {
+            role: "system",
+            content: withWebSearchSystemContext(
+              apiMessages[systemIndex].content,
+            ),
+          };
+        }
+        const userIndex = apiMessages.findIndex((m) => m.role === "user");
+        if (userIndex < 0) {
+          throw new Error("内部错误：初始消息缺少 user 条目。");
+        }
+        apiMessages[userIndex] = {
+          role: "user",
+          content: appendSearchResultsToUserMessage(
+            apiMessages[userIndex].content,
+            searchBundle,
+          ),
+        };
+      }
 
       const output = await streamChatMessages({
         config,
@@ -317,6 +357,7 @@ export function useCommandPanelState(
 
       if (isAbortError(caught)) {
         // First turn cancelled — return to input (no completed session)
+        // Original query is left untouched for retry.
         setPhase("input");
         setSession(null);
       } else {
@@ -339,15 +380,49 @@ export function useCommandPanelState(
     if (!text) return;
 
     const request = beginRequest();
+    // UI shows the raw user text; API may get search-enriched content.
     setPendingUserMessage(text);
     setFollowUp("");
 
-    const requestMessages: ChatMessage[] = [
-      ...session.apiMessages,
-      { role: "user", content: text },
-    ];
-
     try {
+      let apiUserContent = text;
+      let apiMessagesBase = session.apiMessages;
+      if (userRequestsWebSearch(text)) {
+        const currentSettings = await getAiSettings(pluginName);
+        if (!isRequestActive(request)) return;
+        setSettings(currentSettings);
+        assertWebSearchReady(currentSettings);
+        // Prefer the latest visible assistant answer for deictics like「刚才提到」;
+        // fall back / append block text. Do not use internal apiMessages (search payload).
+        const latestAnswer = latestAssistantContent().trim();
+        const blockText = context.blockText.trim();
+        const followUpContext = [latestAnswer, blockText]
+          .filter(Boolean)
+          .join("\n\n");
+        const searchBundle = await runWebSearch({
+          settings: currentSettings.webSearch,
+          query: buildSearchQuery(text, followUpContext),
+          signal: request.controller.signal,
+        });
+        if (!isRequestActive(request)) return;
+        apiUserContent = appendSearchResultsToUserMessage(text, searchBundle);
+        // Keep a fresh "today" anchor on web-search turns.
+        apiMessagesBase = session.apiMessages.map((message, index) => {
+          if (index === 0 && message.role === "system") {
+            return {
+              ...message,
+              content: withWebSearchSystemContext(message.content),
+            };
+          }
+          return message;
+        });
+      }
+
+      const requestMessages: ChatMessage[] = [
+        ...apiMessagesBase,
+        { role: "user", content: apiUserContent },
+      ];
+
       const output = await streamChatMessages({
         config: session.config,
         maxTokens: session.maxTokens,
@@ -364,7 +439,7 @@ export function useCommandPanelState(
           ...prev,
           apiMessages: [
             ...prev.apiMessages,
-            { role: "user", content: text },
+            { role: "user", content: apiUserContent },
             { role: "assistant", content: output },
           ],
           visibleMessages: [

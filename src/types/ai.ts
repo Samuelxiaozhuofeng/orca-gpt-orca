@@ -35,6 +35,47 @@ export type PromptTemplate = {
   builtin?: boolean;
 };
 
+/** Search backend for live web lookup. */
+export type WebSearchProvider =
+  | "auto"
+  | "exa"
+  | "brave"
+  | "tavily"
+  | "perplexity";
+
+export type WebSearchDepth = "basic" | "advanced";
+
+export type WebSearchSettings = {
+  /** Master switch for live web search. Default: false. */
+  enabled: boolean;
+  /**
+   * Provider selection.
+   * - `auto`: dual concurrent search (prefer keyed providers) + URL dedupe/rank.
+   * - fixed provider: single backend only.
+   * Exa also works without a key via public MCP.
+   */
+  provider: WebSearchProvider;
+  /** Tavily API key. Never sent to the model. */
+  tavilyApiKey: string;
+  /** Exa API key (optional — MCP path works without it). */
+  exaApiKey: string;
+  /** Brave Search API key. */
+  braveApiKey: string;
+  /** Perplexity API key. */
+  perplexityApiKey: string;
+  /** Tavily search depth. Default: advanced. */
+  searchDepth: WebSearchDepth;
+  /** Prefer provider-side synthesized answer when available. Default: true. */
+  includeAnswer: boolean;
+  /**
+   * After search, fetch full page text for top results (Jina Reader).
+   * Default: true.
+   */
+  fetchFullContent: boolean;
+  /** Max search results to keep after merge (1–10). Default: 5. */
+  maxResults: number;
+};
+
 export type AiSettings = {
   shortcut: string;
   defaultProviderId: string;
@@ -45,6 +86,7 @@ export type AiSettings = {
   providers: AiProvider[];
   promptOverrides: PromptOverride[];
   customPrompts: PromptTemplate[];
+  webSearch: WebSearchSettings;
 };
 
 export type AiHistoryAction = "replace" | "insert" | "copy";
