@@ -2,11 +2,15 @@ import React, { useState } from "react";
 import { CustomPrompts } from "./CustomPrompts";
 import { PromptRouting } from "./PromptRouting";
 import { fetchAndStoreModels } from "../services/modelService";
+import { testLocalCliConnection } from "../services/localCliRunner";
+import { testMcpConnection } from "../services/mcp/mcpService";
 import { testWebSearchConnection } from "../services/webSearch";
 import { DEFAULT_SETTINGS } from "../settings/schema";
 import type {
   AiProvider,
   AiSettings,
+  LocalCliSettings,
+  McpSettings,
   PromptTemplate,
   WebSearchProvider,
   WebSearchSettings,
@@ -15,7 +19,13 @@ import type {
 type SettingsViewProps = {
   settings: AiSettings;
   prompts: PromptTemplate[];
-  visibleSection?: "providers" | "webSearch" | "routing" | "prompts";
+  visibleSection?:
+    | "providers"
+    | "webSearch"
+    | "mcp"
+    | "localCli"
+    | "routing"
+    | "prompts";
   onSettingsChange: (settings: AiSettings) => void;
   onError: (message: string) => void;
 };
@@ -29,6 +39,8 @@ export function SettingsView({
 }: SettingsViewProps) {
   const [isFetchingProviderId, setIsFetchingProviderId] = useState("");
   const [isTestingSearch, setIsTestingSearch] = useState(false);
+  const [isTestingMcp, setIsTestingMcp] = useState(false);
+  const [isTestingLocalCli, setIsTestingLocalCli] = useState(false);
 
   const fetchModels = async (providerId: string) => {
     setIsFetchingProviderId(providerId);
@@ -59,6 +71,38 @@ export function SettingsView({
       orca.notify("error", message);
     } finally {
       setIsTestingSearch(false);
+    }
+  };
+
+  const testMcp = async () => {
+    const mcp = settings.mcp ?? DEFAULT_SETTINGS.mcp;
+    onError("");
+    setIsTestingMcp(true);
+    try {
+      const message = await testMcpConnection(mcp);
+      orca.notify("success", message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      onError(message);
+      orca.notify("error", message);
+    } finally {
+      setIsTestingMcp(false);
+    }
+  };
+
+  const testLocalCli = async () => {
+    const localCli = settings.localCli ?? DEFAULT_SETTINGS.localCli;
+    onError("");
+    setIsTestingLocalCli(true);
+    try {
+      const message = await testLocalCliConnection(localCli);
+      orca.notify("success", message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      onError(message);
+      orca.notify("error", message);
+    } finally {
+      setIsTestingLocalCli(false);
     }
   };
 
@@ -98,6 +142,22 @@ export function SettingsView({
           onTestConnection={testSearch}
         />
       ) : null}
+      {visibleSection == null || visibleSection === "mcp" ? (
+        <McpEditor
+          settings={settings}
+          isTesting={isTestingMcp}
+          onSettingsChange={onSettingsChange}
+          onTestConnection={testMcp}
+        />
+      ) : null}
+      {visibleSection == null || visibleSection === "localCli" ? (
+        <LocalCliEditor
+          settings={settings}
+          isTesting={isTestingLocalCli}
+          onSettingsChange={onSettingsChange}
+          onTestConnection={testLocalCli}
+        />
+      ) : null}
       {visibleSection == null || visibleSection === "routing" ? (
         <PromptRouting
           prompts={prompts}
@@ -109,6 +169,223 @@ export function SettingsView({
         <CustomPrompts settings={settings} onSettingsChange={onSettingsChange} />
       ) : null}
     </section>
+  );
+}
+
+function LocalCliEditor({
+  settings,
+  isTesting,
+  onSettingsChange,
+  onTestConnection,
+}: {
+  settings: AiSettings;
+  isTesting: boolean;
+  onSettingsChange: (settings: AiSettings) => void;
+  onTestConnection: () => void;
+}) {
+  const localCli: LocalCliSettings = {
+    ...DEFAULT_SETTINGS.localCli,
+    ...(settings.localCli ?? {}),
+  };
+
+  const updateLocalCli = (patch: Partial<LocalCliSettings>) => {
+    onSettingsChange({
+      ...settings,
+      localCli: {
+        ...localCli,
+        ...patch,
+      },
+    });
+  };
+
+  return (
+    <>
+      <div className="orca-ai-panel__section-heading">
+        <span>Local CLI</span>
+      </div>
+      <div className="orca-ai-panel__provider-list">
+        <div className="orca-ai-panel__provider">
+          <div className="orca-ai-panel__provider-title">
+            <strong>Localhost bridge</strong>
+            <span>{localCli.enabled ? "Enabled" : "Disabled"}</span>
+          </div>
+          <p className="orca-ai-panel__hint">
+            通过本机 HTTP bridge 调用 CLI（如 Codex），插件本身不 spawn
+            进程。启动：
+            <code>node scripts/local-cli-bridge.mjs --port 18777</code>
+            。启用后，命令面板会出现「Run with Local CLI」。可在 prompt
+            首行写 <code>cwd: /path</code> 临时覆盖工作目录；默认会读取当前页面
+            <code>#cli</code> 标签引用上的文本属性 <code>cwd</code>。默认 Codex 参数会绕过审批与沙箱，允许操作本机文件和应用。
+          </p>
+          <label className="orca-ai-panel__field orca-ai-panel__field--checkbox">
+            <span>启用 Local CLI</span>
+            <input
+              type="checkbox"
+              checked={localCli.enabled}
+              onChange={(e) => updateLocalCli({ enabled: e.target.checked })}
+            />
+          </label>
+          <label className="orca-ai-panel__field">
+            <span>Bridge URL</span>
+            <input
+              type="text"
+              value={localCli.bridgeUrl}
+              placeholder="http://localhost:18777"
+              onChange={(e) => updateLocalCli({ bridgeUrl: e.target.value })}
+            />
+          </label>
+          <label className="orca-ai-panel__field">
+            <span>Command</span>
+            <input
+              type="text"
+              value={localCli.command}
+              placeholder="codex"
+              onChange={(e) => updateLocalCli({ command: e.target.value })}
+            />
+          </label>
+          <label className="orca-ai-panel__field">
+            <span>Args（空格分隔）</span>
+            <input
+              type="text"
+              value={localCli.args}
+              placeholder="exec --dangerously-bypass-approvals-and-sandbox"
+              onChange={(e) => updateLocalCli({ args: e.target.value })}
+            />
+          </label>
+          <label className="orca-ai-panel__field">
+            <span>Timeout (ms)</span>
+            <input
+              type="number"
+              min={1000}
+              max={1800000}
+              step={1000}
+              value={localCli.timeoutMs}
+              onChange={(e) => {
+                const n = Number(e.target.value);
+                updateLocalCli({
+                  timeoutMs: Number.isFinite(n) ? n : 300_000,
+                });
+              }}
+            />
+          </label>
+          <label className="orca-ai-panel__field">
+            <span>Auth Token（可选）</span>
+            <input
+              type="password"
+              value={localCli.authToken}
+              autoComplete="off"
+              placeholder="与 bridge --token 一致；留空则不发送"
+              onChange={(e) => updateLocalCli({ authToken: e.target.value })}
+            />
+          </label>
+          <div className="orca-ai-panel__provider-actions">
+            <button
+              type="button"
+              onClick={onTestConnection}
+              disabled={isTesting}
+            >
+              {isTesting ? "Testing…" : "Test connection"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function McpEditor({
+  settings,
+  isTesting,
+  onSettingsChange,
+  onTestConnection,
+}: {
+  settings: AiSettings;
+  isTesting: boolean;
+  onSettingsChange: (settings: AiSettings) => void;
+  onTestConnection: () => void;
+}) {
+  const mcp: McpSettings = {
+    ...DEFAULT_SETTINGS.mcp,
+    ...(settings.mcp ?? {}),
+  };
+
+  const updateMcp = (patch: Partial<McpSettings>) => {
+    onSettingsChange({
+      ...settings,
+      mcp: {
+        ...mcp,
+        ...patch,
+      },
+    });
+  };
+
+  return (
+    <>
+      <div className="orca-ai-panel__section-heading">
+        <span>MCP Tools / 笔记工具</span>
+      </div>
+      <div className="orca-ai-panel__provider-list">
+        <div className="orca-ai-panel__provider">
+          <div className="orca-ai-panel__provider-title">
+            <strong>Orca Note MCP</strong>
+            <span>{mcp.enabled ? "Enabled" : "Disabled"}</span>
+          </div>
+          <p className="orca-ai-panel__hint">
+            连接本机 Orca Note MCP（默认 localhost:18672），让模型在对话中
+            自行搜索、读取、写入笔记。需模型支持 function calling。
+          </p>
+          <label className="orca-ai-panel__field orca-ai-panel__field--checkbox">
+            <span>启用 MCP 工具</span>
+            <input
+              type="checkbox"
+              checked={mcp.enabled}
+              onChange={(e) => updateMcp({ enabled: e.target.checked })}
+            />
+          </label>
+          <label className="orca-ai-panel__field">
+            <span>MCP URL</span>
+            <input
+              type="text"
+              value={mcp.url}
+              placeholder="http://localhost:18672/mcp"
+              onChange={(e) => updateMcp({ url: e.target.value })}
+            />
+          </label>
+          <label className="orca-ai-panel__field">
+            <span>Auth Token</span>
+            <input
+              type="password"
+              value={mcp.authToken}
+              placeholder="orca-mcp"
+              onChange={(e) => updateMcp({ authToken: e.target.value })}
+            />
+          </label>
+          <label className="orca-ai-panel__field">
+            <span>最大工具轮次</span>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={mcp.maxToolRounds}
+              onChange={(e) =>
+                updateMcp({
+                  maxToolRounds: Number(e.target.value) || 8,
+                })
+              }
+            />
+          </label>
+          <div className="orca-ai-panel__provider-actions">
+            <button
+              type="button"
+              onClick={onTestConnection}
+              disabled={isTesting}
+            >
+              {isTesting ? "Testing…" : "Test connection"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 

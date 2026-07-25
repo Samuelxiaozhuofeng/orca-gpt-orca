@@ -22,6 +22,12 @@ import {
   streamChatMessages,
 } from "../services/aiRunner";
 import {
+  LOCAL_CLI_PROMPT_ID,
+  parseCliArgs,
+  resolveLocalCliCwd,
+  runLocalCli,
+} from "../services/localCliRunner";
+import {
   appendSearchResultsToUserMessage,
   assertWebSearchReady,
   buildSearchQuery,
@@ -47,6 +53,8 @@ export type VisibleChatMessage = {
   content: string;
 };
 
+type SessionMode = "ai" | "localCli";
+
 type SessionState = {
   prompt: PromptTemplate;
   config: ResolvedPromptConfig;
@@ -55,6 +63,18 @@ type SessionState = {
   apiMessages: ChatMessage[];
   /** UI bubbles: first assistant, then follow-up user/assistant pairs. */
   visibleMessages: VisibleChatMessage[];
+  /** v1: Local CLI sessions do not support follow-up/regenerate via cloud AI. */
+  mode: SessionMode;
+};
+
+const LOCAL_CLI_PROMPT: PromptTemplate = {
+  id: LOCAL_CLI_PROMPT_ID,
+  name: "Run with Local CLI",
+  description: "通过本机 CLI bridge 执行（将当前 block 或输入作为 prompt）。",
+  instruction: "",
+  resultKind: "text",
+  outputMode: "ask",
+  builtin: true,
 };
 
 type ActiveRequest = {
@@ -71,7 +91,13 @@ export function useCommandPanelState(
   const [settings, setSettings] = useState<AiSettings>(() =>
     getDefaultAiSettings(pluginName),
   );
-  const prompts = useMemo(() => getAvailablePrompts(settings), [settings]);
+  const prompts = useMemo(() => {
+    const base = getAvailablePrompts(settings);
+    if (settings.localCli?.enabled === true) {
+      return [...base, LOCAL_CLI_PROMPT];
+    }
+    return base;
+  }, [settings]);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [context, setContext] = useState<AiBlockContext | null>(null);
@@ -79,6 +105,7 @@ export function useCommandPanelState(
   const [followUp, setFollowUp] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [toolStatus, setToolStatus] = useState("");
   const [pendingUserMessage, setPendingUserMessage] = useState<string | null>(
     null,
   );
@@ -118,6 +145,7 @@ export function useCommandPanelState(
     setFollowUp("");
     setIsGenerating(false);
     setStreamingContent("");
+    setToolStatus("");
     setPendingUserMessage(null);
     setError("");
 
@@ -167,7 +195,7 @@ export function useCommandPanelState(
     if (!session) return "";
     for (let i = session.visibleMessages.length - 1; i >= 0; i--) {
       const message = session.visibleMessages[i];
-      if (message.role === "assistant") return message.content;
+      if (message.role === "assistant") return message.content ?? "";
     }
     return "";
   };
@@ -228,6 +256,7 @@ export function useCommandPanelState(
     setIsGenerating(true);
     setError("");
     setStreamingContent("");
+    setToolStatus("");
     return { id, controller };
   };
 
@@ -237,6 +266,7 @@ export function useCommandPanelState(
     abortRef.current = null;
     setIsGenerating(false);
     setStreamingContent("");
+    setToolStatus("");
     setPendingUserMessage(null);
   };
 
@@ -245,6 +275,13 @@ export function useCommandPanelState(
     (token: string) => {
       if (!isRequestActive(request)) return;
       setStreamingContent((value) => `${value}${token}`);
+    };
+
+  const onActiveToolStatus =
+    (request: ActiveRequest) =>
+    (event: { message: string }) => {
+      if (!isRequestActive(request)) return;
+      setToolStatus(event.message);
     };
 
   /** First turn: system + initial instruction/block. Establishes session config. */
@@ -269,10 +306,27 @@ export function useCommandPanelState(
 
       setSettings(currentSettings);
 
-      const basePrompt = prompt ?? prompts[0];
+      // Local CLI path only when the user explicitly selected the pseudo-action
+      // (never fall through from free-form text via prompts[0]).
+      if (prompt?.id === LOCAL_CLI_PROMPT_ID) {
+        await executeLocalCliTurn({
+          request,
+          currentSettings,
+          context,
+          instruction,
+          runPrompt: LOCAL_CLI_PROMPT,
+        });
+        return;
+      }
+
+      const basePrompt =
+        prompt && prompt.id !== LOCAL_CLI_PROMPT_ID
+          ? prompt
+          : prompts.find((item) => item.id !== LOCAL_CLI_PROMPT_ID);
       if (!basePrompt) {
         throw new Error("No prompt template is available.");
       }
+
       const trimmedInstruction = instruction.trim();
       // Keep template (incl. resultKind) when instruction matches selected prompt
       const isCustomInstruction =
@@ -306,7 +360,7 @@ export function useCommandPanelState(
           apiMessages[systemIndex] = {
             role: "system",
             content: withWebSearchSystemContext(
-              apiMessages[systemIndex].content,
+              apiMessages[systemIndex].content ?? "",
             ),
           };
         }
@@ -317,26 +371,26 @@ export function useCommandPanelState(
         apiMessages[userIndex] = {
           role: "user",
           content: appendSearchResultsToUserMessage(
-            apiMessages[userIndex].content,
+            apiMessages[userIndex].content ?? "",
             searchBundle,
           ),
         };
       }
 
-      const output = await streamChatMessages({
+      const { output, messages: completedMessages } = await streamChatMessages({
         config,
         maxTokens: currentSettings.maxTokens,
         messages: apiMessages,
         signal: request.controller.signal,
         onToken: onActiveToken(request),
+        mcp: currentSettings.mcp,
+        onToolStatus: onActiveToolStatus(request),
+        onStreamReset: () => {
+          if (isRequestActive(request)) setStreamingContent("");
+        },
       });
 
       if (!isRequestActive(request)) return;
-
-      const completedMessages: ChatMessage[] = [
-        ...apiMessages,
-        { role: "assistant", content: output },
-      ];
 
       setSession({
         prompt: runPrompt,
@@ -344,6 +398,7 @@ export function useCommandPanelState(
         maxTokens: currentSettings.maxTokens,
         apiMessages: completedMessages,
         visibleMessages: [{ role: "assistant", content: output }],
+        mode: "ai",
       });
       setFollowUp("");
       endRequest(request);
@@ -373,11 +428,99 @@ export function useCommandPanelState(
     }
   };
 
+  const executeLocalCliTurn = async ({
+    request,
+    currentSettings,
+    context: blockContext,
+    instruction,
+    runPrompt,
+  }: {
+    request: ActiveRequest;
+    currentSettings: AiSettings;
+    context: AiBlockContext;
+    instruction: string;
+    runPrompt: PromptTemplate;
+  }) => {
+    const localCli = currentSettings.localCli;
+    if (!localCli?.enabled) {
+      throw new Error("Local CLI 未启用。请在设置 → Local CLI 中打开开关。");
+    }
+
+    // Query non-empty → use query; otherwise use block text as the CLI prompt.
+    const rawPrompt = instruction.trim() || blockContext.blockText;
+    if (!rawPrompt.trim()) {
+      throw new Error("Local CLI prompt 为空：请选中有内容的 block，或在输入框填写指令。");
+    }
+
+    const { cwd, prompt: cliPrompt } = await resolveLocalCliCwd(
+      rawPrompt,
+      localCli,
+      blockContext,
+    );
+    if (!cliPrompt.trim()) {
+      throw new Error(
+        "Local CLI prompt 在去掉 `cwd:` 指令后为空。请补充要执行的内容。",
+      );
+    }
+
+    setToolStatus(`Local CLI · ${localCli.command} · ${cwd}`);
+
+    const output = await runLocalCli({
+      settings: localCli,
+      request: {
+        prompt: cliPrompt,
+        cwd,
+        command: localCli.command,
+        args: parseCliArgs(localCli.args),
+        timeoutMs: localCli.timeoutMs,
+      },
+      signal: request.controller.signal,
+      onToken: onActiveToken(request),
+    });
+
+    if (!isRequestActive(request)) return;
+
+    const config = buildLocalCliResolvedConfig(localCli);
+    const apiMessages: ChatMessage[] = [
+      {
+        role: "user",
+        content: cliPrompt,
+      },
+      {
+        role: "assistant",
+        content: output,
+      },
+    ];
+
+    setSession({
+      prompt: runPrompt,
+      config,
+      maxTokens: currentSettings.maxTokens,
+      apiMessages,
+      visibleMessages: [{ role: "assistant", content: output }],
+      mode: "localCli",
+    });
+    setFollowUp("");
+    endRequest(request);
+
+    await recordHistorySafe(output, runPrompt, config, undefined, {
+      shouldSetPanelError: () => requestIdRef.current === request.id,
+    });
+  };
+
   /** Follow-up turn: full prior context + new user message. */
   const sendFollowUp = async () => {
     if (!context || !session || isGenerating) return;
     const text = followUp.trim();
     if (!text) return;
+
+    if (session.mode === "localCli") {
+      const message =
+        "Local CLI 会话暂不支持继续对话。请关闭面板后重新选择「Run with Local CLI」。";
+      setError(message);
+      orca.notify("error", message);
+      return;
+    }
 
     const request = beginRequest();
     // UI shows the raw user text; API may get search-enriched content.
@@ -411,7 +554,7 @@ export function useCommandPanelState(
           if (index === 0 && message.role === "system") {
             return {
               ...message,
-              content: withWebSearchSystemContext(message.content),
+              content: withWebSearchSystemContext(message.content ?? ""),
             };
           }
           return message;
@@ -423,12 +566,17 @@ export function useCommandPanelState(
         { role: "user", content: apiUserContent },
       ];
 
-      const output = await streamChatMessages({
+      const { output, messages: completedMessages } = await streamChatMessages({
         config: session.config,
         maxTokens: session.maxTokens,
         messages: requestMessages,
         signal: request.controller.signal,
         onToken: onActiveToken(request),
+        mcp: settings.mcp,
+        onToolStatus: onActiveToolStatus(request),
+        onStreamReset: () => {
+          if (isRequestActive(request)) setStreamingContent("");
+        },
       });
 
       if (!isRequestActive(request)) return;
@@ -437,11 +585,7 @@ export function useCommandPanelState(
         if (!prev) return prev;
         return {
           ...prev,
-          apiMessages: [
-            ...prev.apiMessages,
-            { role: "user", content: apiUserContent },
-            { role: "assistant", content: output },
-          ],
+          apiMessages: completedMessages,
           visibleMessages: [
             ...prev.visibleMessages,
             { role: "user", content: text },
@@ -480,6 +624,14 @@ export function useCommandPanelState(
   const regenerate = async () => {
     if (!context || !session || isGenerating) return;
 
+    if (session.mode === "localCli") {
+      const message =
+        "Local CLI 会话暂不支持重新生成。请关闭面板后重新选择「Run with Local CLI」。";
+      setError(message);
+      orca.notify("error", message);
+      return;
+    }
+
     const apiMessages = session.apiMessages;
     let lastAssistantIndex = -1;
     for (let i = apiMessages.length - 1; i >= 0; i--) {
@@ -490,7 +642,7 @@ export function useCommandPanelState(
     }
     if (lastAssistantIndex < 0) return;
 
-    const previousContent = apiMessages[lastAssistantIndex].content;
+    const previousContent = apiMessages[lastAssistantIndex].content ?? "";
     regenerateBackupRef.current = previousContent;
 
     const requestMessages = apiMessages.slice(0, lastAssistantIndex);
@@ -518,12 +670,17 @@ export function useCommandPanelState(
     const sessionMaxTokens = session.maxTokens;
 
     try {
-      const output = await streamChatMessages({
+      const { output, messages: completedMessages } = await streamChatMessages({
         config: sessionConfig,
         maxTokens: sessionMaxTokens,
         messages: requestMessages,
         signal: request.controller.signal,
         onToken: onActiveToken(request),
+        mcp: settings.mcp,
+        onToolStatus: onActiveToolStatus(request),
+        onStreamReset: () => {
+          if (isRequestActive(request)) setStreamingContent("");
+        },
       });
 
       if (!isRequestActive(request)) return;
@@ -532,10 +689,7 @@ export function useCommandPanelState(
         if (!prev) return prev;
         return {
           ...prev,
-          apiMessages: [
-            ...prev.apiMessages,
-            { role: "assistant", content: output },
-          ],
+          apiMessages: completedMessages,
           visibleMessages: [
             ...prev.visibleMessages,
             { role: "assistant", content: output },
@@ -634,6 +788,7 @@ export function useCommandPanelState(
     followUp,
     isGenerating,
     streamingContent,
+    toolStatus,
     pendingUserMessage,
     error,
     setQuery,
@@ -646,6 +801,25 @@ export function useCommandPanelState(
     cancel,
     performAction,
     latestAssistantContent,
+  };
+}
+
+function buildLocalCliResolvedConfig(
+  localCli: AiSettings["localCli"],
+): ResolvedPromptConfig {
+  const command = localCli.command.trim() || "local-cli";
+  return {
+    provider: {
+      id: "local-cli",
+      name: "Local CLI",
+      apiBaseUrl: localCli.bridgeUrl.trim() || "http://localhost:18777",
+      apiKey: localCli.authToken || "(none)",
+      models: [command],
+      defaultModel: command,
+    },
+    model: command,
+    temperature: 0,
+    outputMode: "ask",
   };
 }
 

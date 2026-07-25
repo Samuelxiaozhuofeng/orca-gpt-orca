@@ -3,6 +3,8 @@ import { loadStoredAiSettings, storeAiSettings } from "./settingsDataStore";
 import type {
   AiProvider,
   AiSettings,
+  LocalCliSettings,
+  McpSettings,
   OutputMode,
   PromptOverride,
   PromptTemplate,
@@ -71,6 +73,8 @@ function normalizeRawSettings(raw: UnknownRecord): AiSettings {
     promptOverrides: normalizePromptOverrides(raw.promptOverrides),
     customPrompts: normalizeCustomPrompts(raw.customPrompts),
     webSearch: normalizeWebSearch(raw.webSearch),
+    mcp: normalizeMcp(raw.mcp),
+    localCli: normalizeLocalCli(raw.localCli),
   };
 }
 
@@ -100,6 +104,8 @@ export function normalizeSettings(settings: AiSettings): AiSettings {
     promptOverrides: normalizePromptOverrides(settings.promptOverrides),
     customPrompts: normalizeCustomPrompts(settings.customPrompts),
     webSearch: normalizeWebSearch(settings.webSearch),
+    mcp: normalizeMcp(settings.mcp),
+    localCli: normalizeLocalCli(settings.localCli),
   };
 }
 
@@ -150,6 +156,66 @@ function normalizeWebSearchProvider(value: unknown): WebSearchProvider {
 
 function normalizeWebSearchDepth(value: unknown): WebSearchDepth {
   return value === "basic" ? "basic" : "advanced";
+}
+
+function normalizeMcp(value: unknown): McpSettings {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return { ...DEFAULT_SETTINGS.mcp };
+  }
+
+  const record = value as UnknownRecord;
+  const maxRoundsRaw = asNumber(
+    record.maxToolRounds,
+    DEFAULT_SETTINGS.mcp.maxToolRounds,
+  );
+
+  return {
+    enabled: record.enabled === true,
+    url: asString(record.url, DEFAULT_SETTINGS.mcp.url).trim() || DEFAULT_SETTINGS.mcp.url,
+    authToken: asString(record.authToken, DEFAULT_SETTINGS.mcp.authToken),
+    maxToolRounds: Math.max(1, Math.min(20, Math.floor(maxRoundsRaw))),
+  };
+}
+
+const LOCAL_CLI_TIMEOUT_MIN_MS = 1_000;
+const LOCAL_CLI_TIMEOUT_MAX_MS = 1_800_000; // 30 min
+
+function normalizeLocalCli(value: unknown): LocalCliSettings {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    return { ...DEFAULT_SETTINGS.localCli };
+  }
+
+  const record = value as UnknownRecord;
+  const timeoutRaw = asNumber(
+    record.timeoutMs,
+    DEFAULT_SETTINGS.localCli.timeoutMs,
+  );
+  const timeoutMs = Math.max(
+    LOCAL_CLI_TIMEOUT_MIN_MS,
+    Math.min(LOCAL_CLI_TIMEOUT_MAX_MS, Math.floor(timeoutRaw)),
+  );
+
+  return {
+    enabled: record.enabled === true,
+    bridgeUrl:
+      asString(record.bridgeUrl, DEFAULT_SETTINGS.localCli.bridgeUrl).trim() ||
+      DEFAULT_SETTINGS.localCli.bridgeUrl,
+    command:
+      asString(record.command, DEFAULT_SETTINGS.localCli.command).trim() ||
+      DEFAULT_SETTINGS.localCli.command,
+    args: normalizeLocalCliArgs(record.args),
+    timeoutMs,
+    authToken: asString(record.authToken, DEFAULT_SETTINGS.localCli.authToken),
+  };
+}
+
+function normalizeLocalCliArgs(value: unknown): string {
+  const args = asString(value, DEFAULT_SETTINGS.localCli.args).trim();
+  // Migrate the original v1 default to the requested full-access Codex mode.
+  if (!args || args === "exec") {
+    return DEFAULT_SETTINGS.localCli.args;
+  }
+  return args;
 }
 
 export function normalizeApiBaseUrl(apiBaseUrl: string): string {

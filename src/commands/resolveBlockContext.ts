@@ -3,6 +3,7 @@ import type { AiBlockContext } from "../types/ai";
 
 export async function resolveBlockContext(
   blockId?: DbId,
+  rootBlockId?: DbId,
 ): Promise<AiBlockContext> {
   const cursor = getCurrentCursor();
   const selection = window.getSelection();
@@ -20,6 +21,7 @@ export async function resolveBlockContext(
       block: selectedBlocks[selectedBlocks.length - 1],
       blockText: combinedText,
       cursor,
+      rootBlockId: rootBlockId ?? cursor?.rootBlockId,
       selectedBlockIds: selectedBlocks.map(b => b.id),
       blockCount: selectedBlocks.length,
     };
@@ -44,6 +46,7 @@ export async function resolveBlockContext(
     block,
     blockText,
     cursor,
+    rootBlockId: rootBlockId ?? cursor?.rootBlockId,
     selectedBlockIds: [targetBlockId],
     blockCount: 1,
   };

@@ -33,6 +33,20 @@ export const DEFAULT_SETTINGS: AiSettings = {
     fetchFullContent: true,
     maxResults: 5,
   },
+  mcp: {
+    enabled: false,
+    url: "http://localhost:18672/mcp",
+    authToken: "orca-mcp",
+    maxToolRounds: 8,
+  },
+  localCli: {
+    enabled: false,
+    bridgeUrl: "http://localhost:18777",
+    command: "codex",
+    args: "exec --dangerously-bypass-approvals-and-sandbox",
+    timeoutMs: 300_000,
+    authToken: "",
+  },
 };
 
 export const settingsSchema: PluginSettingsSchema = {

@@ -76,6 +76,60 @@ export type WebSearchSettings = {
   maxResults: number;
 };
 
+/** Orca Note MCP server (read/write notes via agent tools). */
+export type McpSettings = {
+  /** Master switch. When on, model may call MCP tools during generation. */
+  enabled: boolean;
+  /** Streamable HTTP endpoint, default http://localhost:18672/mcp */
+  url: string;
+  /** Bearer token (with or without "Bearer " prefix). */
+  authToken: string;
+  /** Max tool→model rounds per user turn (1–20). Default: 8. */
+  maxToolRounds: number;
+};
+
+/**
+ * Local CLI via localhost HTTP bridge (no child_process in the plugin).
+ * Plugin POSTs to the bridge; the bridge spawns the real CLI.
+ */
+export type LocalCliSettings = {
+  /** Master switch. When on, command panel shows "Run with Local CLI". */
+  enabled: boolean;
+  /** Bridge base URL, default http://localhost:18777 */
+  bridgeUrl: string;
+  /** CLI binary name/path, default "codex" */
+  command: string;
+  /** Space-separated args (v1), default "exec" */
+  args: string;
+  /** Run timeout in ms. Default: 300000 (5 min). */
+  timeoutMs: number;
+  /** Optional Bearer token for the bridge. Empty = no Authorization header. */
+  authToken: string;
+};
+
+export type OpenAITool = {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: "object";
+      properties: Record<string, unknown>;
+      required?: string[];
+      [key: string]: unknown;
+    };
+  };
+};
+
+export type ToolCallInfo = {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string;
+  };
+};
+
 export type AiSettings = {
   shortcut: string;
   defaultProviderId: string;
@@ -87,6 +141,8 @@ export type AiSettings = {
   promptOverrides: PromptOverride[];
   customPrompts: PromptTemplate[];
   webSearch: WebSearchSettings;
+  mcp: McpSettings;
+  localCli: LocalCliSettings;
 };
 
 export type AiHistoryAction = "replace" | "insert" | "copy";
@@ -109,6 +165,7 @@ export type AiBlockContext = {
   block: Block;
   blockText: string;
   cursor: CursorData | null;
+  rootBlockId?: DbId;
   selectedBlockIds: DbId[];
   blockCount: number;
 };
@@ -121,8 +178,11 @@ export type ResolvedPromptConfig = {
 };
 
 export type ChatMessage = {
-  role: "system" | "user" | "assistant";
-  content: string;
+  role: "system" | "user" | "assistant" | "tool";
+  content: string | null;
+  tool_calls?: ToolCallInfo[];
+  tool_call_id?: string;
+  name?: string;
 };
 
 export type RunRequest = {

@@ -19,6 +19,8 @@ type SettingsPageProps = PanelProps & {
 type SettingsSection =
   | "providers"
   | "webSearch"
+  | "mcp"
+  | "localCli"
   | "routing"
   | "prompts"
   | "history";
@@ -90,6 +92,20 @@ export function SettingsPage({ pluginName }: SettingsPageProps) {
           Web Search
         </button>
         <button
+          className={section === "mcp" ? "is-active" : ""}
+          type="button"
+          onClick={() => setSection("mcp")}
+        >
+          MCP Tools
+        </button>
+        <button
+          className={section === "localCli" ? "is-active" : ""}
+          type="button"
+          onClick={() => setSection("localCli")}
+        >
+          Local CLI
+        </button>
+        <button
           className={section === "routing" ? "is-active" : ""}
           type="button"
           onClick={() => setSection("routing")}
@@ -148,6 +164,10 @@ function sectionTitle(section: SettingsSection): string {
       return "Providers";
     case "webSearch":
       return "Web Search / 联网搜索";
+    case "mcp":
+      return "MCP Tools / 笔记工具";
+    case "localCli":
+      return "Local CLI";
     case "routing":
       return "Prompt Routing";
     case "prompts":

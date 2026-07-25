@@ -1,5 +1,9 @@
-import { readOpenAiStream } from "./streamParser";
-import type { AiProvider, ChatMessage } from "../types/ai";
+import { readOpenAiStream, type StreamChatResult } from "./streamParser";
+import type {
+  AiProvider,
+  ChatMessage,
+  OpenAITool,
+} from "../types/ai";
 
 type FetchModelsResponse = {
   data?: Array<{ id?: string }>;
@@ -13,6 +17,7 @@ type StreamChatOptions = {
   maxTokens: number;
   signal: AbortSignal;
   onToken: (token: string) => void;
+  tools?: OpenAITool[];
 };
 
 export async function fetchProviderModels(
@@ -55,8 +60,22 @@ export async function streamChatCompletion({
   maxTokens,
   signal,
   onToken,
-}: StreamChatOptions): Promise<string> {
+  tools,
+}: StreamChatOptions): Promise<StreamChatResult> {
   assertProviderReady(provider, true);
+
+  const body: Record<string, unknown> = {
+    model,
+    messages: serializeMessages(messages),
+    temperature,
+    max_tokens: maxTokens,
+    stream: true,
+  };
+
+  if (tools && tools.length > 0) {
+    body.tools = tools;
+    body.tool_choice = "auto";
+  }
 
   const response = await fetch(`${provider.apiBaseUrl}/chat/completions`, {
     method: "POST",
@@ -65,13 +84,7 @@ export async function streamChatCompletion({
       Authorization: `Bearer ${provider.apiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature,
-      max_tokens: maxTokens,
-      stream: true,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -79,6 +92,29 @@ export async function streamChatCompletion({
   }
 
   return readOpenAiStream(response, onToken);
+}
+
+function serializeMessages(messages: ChatMessage[]): Array<Record<string, unknown>> {
+  return messages.map((message) => {
+    const out: Record<string, unknown> = {
+      role: message.role,
+      content: message.content,
+    };
+
+    if (message.role === "assistant" && message.tool_calls?.length) {
+      out.tool_calls = message.tool_calls;
+      // Some providers reject null content when tool_calls are present; use empty string.
+      if (out.content == null) out.content = "";
+    }
+
+    if (message.role === "tool") {
+      out.tool_call_id = message.tool_call_id;
+      if (message.name) out.name = message.name;
+      out.content = message.content ?? "";
+    }
+
+    return out;
+  });
 }
 
 function assertProviderReady(provider: AiProvider, requireModel: boolean): void {
@@ -98,19 +134,13 @@ function assertProviderReady(provider: AiProvider, requireModel: boolean): void 
 async function buildHttpError(prefix: string, response: Response): Promise<string> {
   const body = await response.text();
   const summary = body.trim().slice(0, 600);
-  return summary
-    ? `${prefix}: ${response.status} ${response.statusText}. ${summary}`
-    : `${prefix}: ${response.status} ${response.statusText}.`;
+  return `${prefix}: HTTP ${response.status} ${response.statusText}${summary ? ` — ${summary}` : ""}`;
 }
 
-function parseJsonResponse(body: string, prefix: string): unknown {
+function parseJsonResponse(text: string, prefix: string): unknown {
   try {
-    return JSON.parse(body) as unknown;
+    return JSON.parse(text);
   } catch {
-    const summary = body.trim().slice(0, 160);
-    const hint = summary.startsWith("<")
-      ? " The server returned HTML; check that the API URL is an OpenAI-compatible base URL such as https://api.openai.com/v1."
-      : "";
-    throw new Error(`${prefix}: response was not valid JSON.${hint}`);
+    throw new Error(`${prefix}: invalid JSON response.`);
   }
 }

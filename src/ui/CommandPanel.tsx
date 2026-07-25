@@ -55,6 +55,7 @@ export function CommandPanel({
   }, [
     state.session?.visibleMessages,
     state.streamingContent,
+    state.toolStatus,
     state.pendingUserMessage,
     state.isGenerating,
     state.error,
@@ -122,9 +123,9 @@ export function CommandPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, state, onClose]);
 
-  const handleExecute = () => {
+  const handleExecute = (promptIndex = state.selectedIndex) => {
     const trimmedQuery = state.query.trim();
-    const selectedPrompt = state.prompts[state.selectedIndex];
+    const selectedPrompt = state.prompts[promptIndex];
 
     if (trimmedQuery) {
       state.executeCommand(trimmedQuery, selectedPrompt);
@@ -160,7 +161,7 @@ export function CommandPanel({
             onQueryChange={state.setQuery}
             onSelectPrompt={(index) => {
               state.setSelectedIndex(index);
-              handleExecute();
+              handleExecute(index);
             }}
           />
         )}
@@ -172,10 +173,12 @@ export function CommandPanel({
             visibleMessages={state.session?.visibleMessages ?? []}
             pendingUserMessage={state.pendingUserMessage}
             streamingContent={state.streamingContent}
+            toolStatus={state.toolStatus}
             isGenerating={state.isGenerating}
             followUp={state.followUp}
             error={state.error}
             hasSession={Boolean(state.session)}
+            mcpEnabled={state.settings.mcp?.enabled === true}
             onFollowUpChange={state.setFollowUp}
             onSendFollowUp={state.sendFollowUp}
             onRegenerate={state.regenerate}
@@ -266,10 +269,12 @@ function ChatPhase({
   visibleMessages,
   pendingUserMessage,
   streamingContent,
+  toolStatus,
   isGenerating,
   followUp,
   error,
   hasSession,
+  mcpEnabled,
   onFollowUpChange,
   onSendFollowUp,
   onRegenerate,
@@ -283,10 +288,12 @@ function ChatPhase({
   visibleMessages: VisibleChatMessage[];
   pendingUserMessage: string | null;
   streamingContent: string;
+  toolStatus: string;
   isGenerating: boolean;
   followUp: string;
   error: string;
   hasSession: boolean;
+  mcpEnabled: boolean;
   onFollowUpChange: (value: string) => void;
   onSendFollowUp: () => void;
   onRegenerate: () => void;
@@ -348,6 +355,15 @@ function ChatPhase({
               <div className="orca-command-panel__loading-bar"></div>
               <div className="orca-command-panel__loading-bar"></div>
             </div>
+            {toolStatus ? (
+              <div className="orca-command-panel__tool-status">{toolStatus}</div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {isGenerating && toolStatus && streamingContent ? (
+          <div className="orca-command-panel__tool-status orca-command-panel__tool-status--inline">
+            {toolStatus}
           </div>
         ) : null}
 
@@ -359,7 +375,7 @@ function ChatPhase({
       {isGenerating ? (
         <div className="orca-command-panel__generating-bar">
           <span className="orca-command-panel__generating-label">
-            Generating…
+            {toolStatus || (mcpEnabled ? "Agent working…" : "Generating…")}
           </span>
           <button
             type="button"
