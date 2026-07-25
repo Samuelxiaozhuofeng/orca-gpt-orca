@@ -6,6 +6,10 @@ import {
   registerSettingsPage,
   type SettingsPageRegistration,
 } from "./ui/registerSettingsPage";
+import LocalCliSessionBlock, {
+  LOCAL_CLI_SESSION_RENDERER_TYPE,
+  setLocalCliSessionPluginName,
+} from "./ui/LocalCliSessionBlock";
 import { getAiSettings } from "./settings/readSettings";
 import { settingsSchema } from "./settings/schema";
 import zhCN from "./translations/zhCN";
@@ -23,6 +27,12 @@ export async function load(_name: string) {
   await orca.plugins.setSettingsSchema(pluginName, settingsSchema);
 
   styleHandle = loadPanelStyles(pluginName);
+  setLocalCliSessionPluginName(pluginName);
+  orca.renderers.registerBlock(
+    LOCAL_CLI_SESSION_RENDERER_TYPE,
+    false,
+    LocalCliSessionBlock,
+  );
   settingsPageRegistration = registerSettingsPage(pluginName);
   panelHandle = mountCommandPanel(pluginName);
   const settings = await getAiSettings(pluginName);
@@ -39,6 +49,7 @@ export async function load(_name: string) {
 export async function unload() {
   await commandRegistration?.cleanup();
   commandRegistration = null;
+  orca.renderers.unregisterBlock(LOCAL_CLI_SESSION_RENDERER_TYPE);
   settingsPageRegistration?.cleanup();
   settingsPageRegistration = null;
   panelHandle?.unmount();
